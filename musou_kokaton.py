@@ -350,9 +350,6 @@ def main():
     num = 3
     tmr = 0
     clock = pg.time.Clock()
-    
-    score.value = 100000
-
 
     while True:
         key_lst = pg.key.get_pressed()
@@ -443,7 +440,6 @@ def main():
         shield.update()
         shield.draw(screen)
         score.update(screen)
-        
 
         pg.display.update()
         tmr += 1
