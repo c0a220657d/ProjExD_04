@@ -37,6 +37,23 @@ def calc_orientation(org: pg.Rect, dst: pg.Rect) -> tuple[float, float]:
     return x_diff/norm, y_diff/norm
 
 
+class Gravity(pg.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pg.Surface((1600, 900))
+        self.color = (0, 0, 0)
+        self.rect = self.image.get_rect()
+        pg.draw.rect(self.image, self.color, (0, 0, WIDTH, HEIGHT))
+        self.image.set_alpha(128)
+        self.life = 400
+    
+    def update(self, screen: pg.Surface):
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+        screen.blit(self.image, [0, 0])
+
+
 class Bird(pg.sprite.Sprite):
     """
     ゲームキャラクター（こうかとん）に関するクラス
@@ -327,6 +344,7 @@ def main():
     shield = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    gravitys = pg.sprite.Group()
     num = 3
     tmr = 0
     clock = pg.time.Clock()
@@ -338,11 +356,7 @@ def main():
                 return 0
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
                 beams.add(Beam(bird))
-            if event.type == pg.KEYDOWN and event.key == pg.K_CAPSLOCK:
-                if (score.value >= 50) and len(shield) <= 0:
-                    score.value -= 50
-                    shield.add(Shield(bird, 400))
-              
+
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
                     if key_lst[pg.K_LSHIFT]:
@@ -362,6 +376,10 @@ def main():
                     if (score.value >= 50) and len(shield) <= 0:
                       score.value -= 50
                       shield.add(Shield(bird, 400))
+                
+                if event.key == pg.K_RETURN and score.value > 199:
+                    gravitys.add(Gravity())
+                    score.value -= 200
 
         screen.blit(bg_img, [0, 0])
 
@@ -384,20 +402,18 @@ def main():
 
         for bomb in pg.sprite.groupcollide(bombs, shield, True, False).keys():
             exps.add(Explosion(bomb, 100)) 
+            
+        # 重力場の当たり判定    
+        for emy_grav in pg.sprite.groupcollide(emys, gravitys, True, False).keys():
+            exps.add(Explosion(emy_grav, 100))  # 爆発エフェクト
+            score.value += 10  # 10点アップ
 
-        if len(pg.sprite.spritecollide(bird, bombs, True)) != 0:
-            if Bird.state == "hyper":
-                exps.add(Explosion(bird, 50))  # 爆発エフェクト
-                score.value += 1
-            else:
-                bird.change_img(8, screen) # こうかとん悲しみエフェクト
-                score.update(screen)
-                pg.display.update()
-                time.sleep(2)
-                return
+        for bomb_grav in pg.sprite.groupcollide(bombs, gravitys, True, False).keys():
+            exps.add(Explosion(bomb_grav, 100))  # 爆発エフェクト
+            score.value += 1  # 1点アップ
             
         for bomb in pg.sprite.spritecollide(bird, bombs, True):
-            if Bird.state == "hyper":
+            if bird.state == "hyper":
                 exps.add(Explosion(bird, 50))  # 爆発エフェクト
                 score.value += 1
             elif bomb.state =="inactive":  #爆弾無効化
@@ -421,10 +437,11 @@ def main():
         shield.update()
         shield.draw(screen)
         score.update(screen)
+        gravitys.update(screen)
+
         pg.display.update()
         tmr += 1
-        clock.tick(50)
-
+        clock.tick(50)        
 
 if __name__ == "__main__":
     pg.init()
