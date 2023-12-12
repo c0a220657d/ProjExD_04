@@ -140,7 +140,8 @@ class Bomb(pg.sprite.Sprite):
         self.rect.centerx = emy.rect.centerx
         self.rect.centery = emy.rect.centery+emy.rect.height/2
         self.speed = 6
-
+        self.state = "active"
+            
     def update(self):
         """
         爆弾を速度ベクトルself.vx, self.vyに基づき移動させる
@@ -155,14 +156,15 @@ class Beam(pg.sprite.Sprite):
     """
     ビームに関するクラス
     """
-    def __init__(self, bird: Bird):
+    def __init__(self, bird: Bird,angle0=.0):
         """
         ビーム画像Surfaceを生成する
         引数 bird：ビームを放つこうかとん
+        引数 angle0：発射角度の振れ幅
         """
         super().__init__()
         self.vx, self.vy = bird.dire
-        angle = math.degrees(math.atan2(-self.vy, self.vx))
+        angle = math.degrees(math.atan2(-self.vy, self.vx)) + angle0
         self.image = pg.transform.rotozoom(pg.image.load(f"{MAIN_DIR}/fig/beam.png"), angle, 2.0)
         self.vx = math.cos(math.radians(angle))
         self.vy = -math.sin(math.radians(angle))
@@ -179,6 +181,17 @@ class Beam(pg.sprite.Sprite):
         self.rect.move_ip(+self.speed*self.vx, +self.speed*self.vy)
         if check_bound(self.rect) != (True, True):
             self.kill()
+
+
+class NeoBeam():
+    def __init__(self,bird:Bird,num:int):
+        self.bird = bird
+        self.num = num
+
+    def gen_beams(self):
+        step = int(100/(self.num-1))
+        beams = [Beam(self.bird,ang) for ang in range(-50,51,step)]
+        return beams
 
 
 class Explosion(pg.sprite.Sprite):
@@ -256,30 +269,57 @@ class Score:
         screen.blit(self.image, self.rect)
 
 
+class EMP(pg.sprite.Sprite):
+    """
+    スコア20以上でeキーを押すと、電磁パルス（EMP）を発生させ、存在する敵機と爆弾を無効化する
+    """
+    def __init__(self, emys:pg.sprite.Group, bombs:pg.sprite.Group, screen:pg.Surface):
+        for emy in emys:
+            emy.interval = float('inf')  
+            emy.image = pg.transform.laplacian(emy.image)  #ラプラシアンフィルタを掛ける
+            emy.image.set_colorkey((0, 0, 0))  #敵機の背景を透過する
+            
+        for bomb in bombs:
+            bomb.speed /= 2  #爆弾の弾速を半分に
+            bomb.state = "inactive"   #爆弾の無効化
+        img = pg.Surface((WIDTH, HEIGHT))
+        pg.draw.rect(img,(255, 255, 0), (0, 0, WIDTH, HEIGHT))  #黄色いエフェクトを表示
+        img.set_alpha(50)
+        screen.blit(img, [0, 0]) 
+        pg.display.update()
+        time.sleep(0.05)  #黄色の矩形を0.05秒表示
+
+
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
     bg_img = pg.image.load(f"{MAIN_DIR}/fig/pg_bg.jpg")
     score = Score()
-    score.value = 1000
-
     bird = Bird(3, (900, 400))
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
-
+    num = 3
     tmr = 0
     clock = pg.time.Clock()
+    
     while True:
         key_lst = pg.key.get_pressed()
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
-
+              
             if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    if key_lst[pg.K_LSHIFT]:
+                        beams.add(NeoBeam(bird,num).gen_beams())
+                    else:
+                        beams.add(Beam(bird))
+                if event.key == pg.K_e and score.value > 20:
+                    EMP(emys,bombs,screen)
+                    score.value -= 20  #スコアを20消費する 
+                    
                 if event.key == pg.K_LSHIFT and score.value > 100:
                     Bird.state = "hyper"
                     Bird.hyper_life = 500
@@ -308,6 +348,19 @@ def main():
             if Bird.state == "hyper":
                 exps.add(Explosion(bird, 50))  # 爆発エフェクト
                 score.value += 1
+            else:
+                bird.change_img(8, screen) # こうかとん悲しみエフェクト
+                score.update(screen)
+                pg.display.update()
+                time.sleep(2)
+                return
+            
+        for bomb in pg.sprite.spritecollide(bird, bombs, True):
+            if Bird.state == "hyper":
+                exps.add(Explosion(bird, 50))  # 爆発エフェクト
+                score.value += 1
+            elif bomb.state =="inactive":  #爆弾無効化
+                continue
             else:
                 bird.change_img(8, screen) # こうかとん悲しみエフェクト
                 score.update(screen)
