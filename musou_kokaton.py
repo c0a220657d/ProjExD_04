@@ -268,6 +268,32 @@ class Score:
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         screen.blit(self.image, self.rect)
 
+class Shield(pg.sprite.Sprite):
+    """
+    防御壁に関するクラス
+    消費スコア:50点
+    """
+    def __init__(self, bird: Bird, life: int):
+        super().__init__()
+        self.bird = bird
+        self.life = life
+        self.image = pg.Surface((20, bird.rect.height*2))  # 1
+        pg.draw.rect(self.image, (0, 0, 255), (0, 0, 20, bird.rect.height*2))  # 2
+        vx, vy = self.bird.dire
+        self.angle = math.degrees(math.atan2(-vy, vx))
+        self.image = pg.transform.rotozoom(self.image, self.angle, 1.0)
+        self.image.set_colorkey((0, 0, 0))
+        self.vx = math.cos(math.radians(self.angle))
+        self.vy = -math.sin(math.radians(self.angle))
+        self.rect = self.image.get_rect()
+
+    def update(self):
+        self.rect.centery = self.bird.rect.centery+self.bird.rect.height*self.vy
+        self.rect.centerx = self.bird.rect.centerx+self.bird.rect.width*self.vx
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+            
 
 class EMP(pg.sprite.Sprite):
     """
@@ -298,6 +324,7 @@ def main():
     bird = Bird(3, (900, 400))
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
+    shield = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
     num = 3
@@ -309,6 +336,12 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
+            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
+                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN and event.key == pg.K_CAPSLOCK:
+                if (score.value >= 50) and len(shield) <= 0:
+                    score.value -= 50
+                    shield.add(Shield(bird, 400))
               
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
@@ -324,6 +357,11 @@ def main():
                     Bird.state = "hyper"
                     Bird.hyper_life = 500
                     score.value -= 100
+                
+                if event.key == pg.K_CAPSLOCK:
+                    if (score.value >= 50) and len(shield) <= 0:
+                      score.value -= 50
+                      shield.add(Shield(bird, 400))
 
         screen.blit(bg_img, [0, 0])
 
@@ -343,6 +381,9 @@ def main():
         for bomb in pg.sprite.groupcollide(bombs, beams, True, True).keys():
             exps.add(Explosion(bomb, 50))  # 爆発エフェクト
             score.value += 1  # 1点アップ
+
+        for bomb in pg.sprite.groupcollide(bombs, shield, True, False).keys():
+            exps.add(Explosion(bomb, 100)) 
 
         if len(pg.sprite.spritecollide(bird, bombs, True)) != 0:
             if Bird.state == "hyper":
@@ -377,6 +418,8 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        shield.update()
+        shield.draw(screen)
         score.update(screen)
         pg.display.update()
         tmr += 1
