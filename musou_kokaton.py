@@ -100,6 +100,8 @@ class Bird(pg.sprite.Sprite):
         引数2 screen：画面Surface
         """
         self.image = pg.transform.rotozoom(pg.image.load(f"{MAIN_DIR}/fig/{num}.png"), 0, 2.0)
+        if Bird.state == "hyper":
+            self.image = pg.transform.laplacian(self.image)
         screen.blit(self.image, self.rect)
 
     def update(self, key_lst: list[bool], screen: pg.Surface):
@@ -349,6 +351,9 @@ def main():
     tmr = 0
     clock = pg.time.Clock()
     
+    score.value = 100000
+
+
     while True:
         key_lst = pg.key.get_pressed()
         for event in pg.event.get():
@@ -367,7 +372,7 @@ def main():
                     EMP(emys,bombs,screen)
                     score.value -= 20  #スコアを20消費する 
                     
-                if event.key == pg.K_LSHIFT and score.value > 100:
+                if event.key == pg.K_RSHIFT and score.value > 100:
                     Bird.state = "hyper"
                     Bird.hyper_life = 500
                     score.value -= 100
@@ -414,7 +419,7 @@ def main():
             
         for bomb in pg.sprite.spritecollide(bird, bombs, True):
             if bird.state == "hyper":
-                exps.add(Explosion(bird, 50))  # 爆発エフェクト
+                exps.add(Explosion(bomb, 50))  # 爆発エフェクト
                 score.value += 1
             elif bomb.state =="inactive":  #爆弾無効化
                 continue
@@ -425,6 +430,7 @@ def main():
                 time.sleep(2)
                 return
 
+        gravitys.update(screen)
         bird.update(key_lst, screen)
         beams.update()
         beams.draw(screen)
@@ -437,7 +443,7 @@ def main():
         shield.update()
         shield.draw(screen)
         score.update(screen)
-        gravitys.update(screen)
+        
 
         pg.display.update()
         tmr += 1
